@@ -18,7 +18,7 @@ const validateRegister = (options) => {
             },
         ];
     }
-    if (options.email.includes("@")) {
+    if (!options.email.includes("@")) {
         return [
             {
                 field: "email",

@@ -19,6 +19,8 @@ const argon2_1 = __importDefault(require("argon2"));
 const Constants_1 = require("../Constants");
 const UsernamePasswordInput_1 = require("./UsernamePasswordInput");
 const validateRegister_1 = require("../utils/validateRegister");
+const sendEmail_1 = require("../utils/sendEmail");
+const uuid_1 = require("uuid");
 let FieldError = class FieldError {
 };
 __decorate([
@@ -42,7 +44,60 @@ UserResponse = __decorate([
     type_graphql_1.ObjectType()
 ], UserResponse);
 let UserResolver = class UserResolver {
-    async forgotPassword(email, { em }) {
+    async changePassword(token, newPassword, { redis, em, req }) {
+        if (newPassword.length <= 2) {
+            return {
+                errors: [
+                    {
+                        field: "newPassword",
+                        message: "The length of password must be greater than 2",
+                    },
+                ],
+            };
+        }
+        const key = Constants_1.FORGET_PASSWORD_PREFIX + token;
+        const userId = await redis.get(key);
+        console.log("userId", userId);
+        if (!userId) {
+            return {
+                errors: [
+                    {
+                        field: "token",
+                        message: "Token expired",
+                    },
+                ],
+            };
+        }
+        const user = await em.findOne(User_1.User, { id: parseInt(userId) });
+        if (!user) {
+            return {
+                errors: [
+                    {
+                        field: "token",
+                        message: "User no longer exists",
+                    },
+                ],
+            };
+        }
+        user.password = await argon2_1.default.hash(newPassword);
+        await em.persistAndFlush(user);
+        await redis.del(key);
+        //login user after change password
+        req.session.userId = user.id;
+        return { user };
+    }
+    async forgotPassword(email, { em, redis }) {
+        const user = await em.findOne(User_1.User, { email });
+        console.log(user);
+        if (!user) {
+            //Email dosen't exist in the database
+            //Here we don't want users to know if a email dosen't exist so that hackers can't know email of users
+            console.log("user not found");
+            return true;
+        }
+        const token = uuid_1.v4();
+        await redis.set(Constants_1.FORGET_PASSWORD_PREFIX + token, user.id, "ex", 1000 * 60 * 60 * 24 * 3);
+        await sendEmail_1.sendEmail(email, `<a href="http://localhost:3000/change-password/${token}"> reset password </a>`);
         return true;
     }
     async me({ req, em }) {
@@ -90,7 +145,7 @@ let UserResolver = class UserResolver {
             return {
                 errors: [
                     {
-                        field: "username",
+                        field: "usernameOrEmail",
                         message: "That username does not exist",
                     },
                 ],
@@ -122,6 +177,12 @@ let UserResolver = class UserResolver {
         }));
     }
 };
+__decorate([
+    type_graphql_1.Mutation(() => UserResponse),
+    __param(0, type_graphql_1.Arg("token", () => String)),
+    __param(1, type_graphql_1.Arg("newPassword", () => String)),
+    __param(2, type_graphql_1.Ctx())
+], UserResolver.prototype, "changePassword", null);
 __decorate([
     type_graphql_1.Mutation(() => Boolean),
     __param(0, type_graphql_1.Arg("email", () => String)),

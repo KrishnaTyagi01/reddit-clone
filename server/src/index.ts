@@ -1,20 +1,17 @@
-import "reflect-metadata";
 import { MikroORM } from "@mikro-orm/core";
+import { ApolloServer } from "apollo-server-express";
+import connectRedis from "connect-redis";
+import cors from "cors";
+import express from "express";
+import session from "express-session";
+import Redis from "ioredis";
+import "reflect-metadata";
+import { buildSchema } from "type-graphql";
 import { COOKIE_NAME, _prod_ } from "./Constants";
 import MikroConfig from "./mikro-orm.config";
-import express from "express";
-import { ApolloServer } from "apollo-server-express";
-import { buildSchema } from "type-graphql";
 import { HelloResolver } from "./resolver/hello";
 import { PostResolver } from "./resolver/post";
 import { UserResolver } from "./resolver/user";
-import redis from "redis";
-import session from "express-session";
-import connectRedis from "connect-redis";
-import { MyContext } from "./types";
-import cors from "cors";
-import { sendEmail } from "./utils/sendEmail";
-import { User } from "./entities/User";
 
 const main = async () => {
   // sendEmail("tyagikrishna38@gmail.com", "Hello there");
@@ -24,7 +21,7 @@ const main = async () => {
   const app = express();
 
   const RedisStore = connectRedis(session);
-  const redisClient = redis.createClient();
+  const redis = Redis();
 
   app.use(
     cors({
@@ -36,7 +33,7 @@ const main = async () => {
   app.use(
     session({
       name: COOKIE_NAME,
-      store: new RedisStore({ client: redisClient, disableTouch: true }),
+      store: new RedisStore({ client: redis, disableTouch: true }),
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 365 * 10, //10 years
         httpOnly: true, // cannot access cookie on frontend by js
@@ -54,7 +51,7 @@ const main = async () => {
       resolvers: [HelloResolver, PostResolver, UserResolver],
       validate: false,
     }),
-    context: ({ req, res }) => ({ em: orm.em, req, res }),
+    context: ({ req, res }) => ({ em: orm.em, req, res, redis }),
   });
 
   apolloServer.applyMiddleware({
