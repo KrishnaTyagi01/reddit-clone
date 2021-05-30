@@ -1,7 +1,8 @@
+import "reflect-metadata";
+require("dotenv").config();
 import { ApolloServer } from "apollo-server-express";
 import connectRedis from "connect-redis";
 import cors from "cors";
-import "reflect-metadata";
 import express from "express";
 import session from "express-session";
 import Redis from "ioredis";
@@ -19,7 +20,7 @@ const main = async () => {
     type: "postgres",
     database: "reddit2",
     username: "postgres",
-    password: "",
+    password: process.env.DATABASE_PASSWORD,
     logging: true,
     synchronize: true,
     entities: [Post, User],

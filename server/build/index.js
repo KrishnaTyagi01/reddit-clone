@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+require("reflect-metadata");
+require("dotenv").config();
 const apollo_server_express_1 = require("apollo-server-express");
 const connect_redis_1 = __importDefault(require("connect-redis"));
 const cors_1 = __importDefault(require("cors"));
-require("reflect-metadata");
 const express_1 = __importDefault(require("express"));
 const express_session_1 = __importDefault(require("express-session"));
 const ioredis_1 = __importDefault(require("ioredis"));
@@ -23,7 +24,7 @@ const main = async () => {
         type: "postgres",
         database: "reddit2",
         username: "postgres",
-        password: "delhi110053gfps",
+        password: process.env.DATABASE_PASSWORD,
         logging: true,
         synchronize: true,
         entities: [Post_1.Post, User_1.User],

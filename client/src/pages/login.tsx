@@ -1,16 +1,15 @@
-import React, { ReactElement } from "react";
-import { Form, Formik } from "formik";
-import { Wrapper } from "../components/Wrapper";
-import { InputField } from "../components/inputField";
-import { Box, Flex, Link } from "@chakra-ui/layout";
 import { Button } from "@chakra-ui/button";
-import { useMutation } from "urql";
-import { useRegisterMutation, useLoginMutation } from "../generated/graphql";
-import { toErrorMap } from "../utils/toErrorMap";
-import { useRouter } from "next/router";
-import { createUrqlClient } from "../utils/createUrqlClient";
+import { Box, Flex, Link } from "@chakra-ui/layout";
+import { Form, Formik } from "formik";
 import { withUrqlClient } from "next-urql";
 import NextLink from "next/link";
+import { useRouter } from "next/router";
+import React from "react";
+import { InputField } from "../components/inputField";
+import { Wrapper } from "../components/Wrapper";
+import { useLoginMutation } from "../generated/graphql";
+import { createUrqlClient } from "../utils/createUrqlClient";
+import { toErrorMap } from "../utils/toErrorMap";
 const Login: React.FC<{}> = ({}) => {
   const router = useRouter();
   const [, login] = useLoginMutation();
