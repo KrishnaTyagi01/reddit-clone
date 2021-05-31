@@ -19,6 +19,7 @@ const User_1 = require("./entities/User");
 const hello_1 = require("./resolver/hello");
 const post_1 = require("./resolver/post");
 const user_1 = require("./resolver/user");
+const path_1 = __importDefault(require("path"));
 const main = async () => {
     const conn = await typeorm_1.createConnection({
         type: "postgres",
@@ -27,8 +28,10 @@ const main = async () => {
         password: process.env.DATABASE_PASSWORD,
         logging: true,
         synchronize: true,
+        migrations: [path_1.default.join(__dirname, "./migrations/*")],
         entities: [Post_1.Post, User_1.User],
     });
+    // await conn.runMigrations();
     const app = express_1.default();
     const RedisStore = connect_redis_1.default(express_session_1.default);
     const redis = ioredis_1.default();
