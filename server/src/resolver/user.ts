@@ -2,10 +2,12 @@ import {
   Arg,
   Ctx,
   Field,
+  FieldResolver,
   Mutation,
   ObjectType,
   Query,
   Resolver,
+  Root,
 } from "type-graphql";
 import { User } from "../entities/User";
 import { MyContext } from "../types";
@@ -35,8 +37,19 @@ class UserResponse {
   user?: User;
 }
 
-@Resolver() // It's optional
+@Resolver(User) // It's optional
 export class UserResolver {
+  @FieldResolver(() => String)
+  email(@Root() user: User, @Ctx() { req }: MyContext) {
+    //we can show current user their own email only
+    if (req.session.userId == user.id) {
+      return user.email;
+    }
+
+    //Current user can't see other user's email
+    return "";
+  }
+
   @Mutation(() => UserResponse)
   async changePassword(
     @Arg("token", () => String) token: string,
@@ -133,7 +146,7 @@ export class UserResolver {
     if (!req.session.userId) {
       return null;
     }
-
+    // console.log("session in ME query: ", req.session);
     return User.findOne(req.session.userId);
   }
 
@@ -217,8 +230,13 @@ export class UserResolver {
         ],
       };
     }
-
+    console.log("User Id When Login:", user.id);
     req.session.userId = user.id;
+
+    console.log("User Id In Session:", req.session.userId);
+
+    console.log("Session after login: ", req.session);
+
     return { user };
   }
 

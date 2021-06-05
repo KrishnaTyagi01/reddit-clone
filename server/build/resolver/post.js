@@ -16,6 +16,7 @@ exports.PostResolver = void 0;
 const type_graphql_1 = require("type-graphql");
 const typeorm_1 = require("typeorm");
 const Post_1 = require("../entities/Post");
+const Updoot_1 = require("../entities/Updoot");
 const isAuth_1 = require("../middleware/isAuth");
 let PostInput = class PostInput {
 };
@@ -47,13 +48,59 @@ let PostResolver = class PostResolver {
     textSnippet(root) {
         return root.text.slice(0, 50);
     }
-    async posts(limit, cursor) {
+    async vote(postId, value, { req }) {
+        const isUpdoot = value !== -1;
+        const realValue = isUpdoot ? 1 : -1;
+        const { userId } = req.session;
+        console.log("Session on Vote resolver: ", req.session);
+        const updoot = await Updoot_1.Updoot.findOne({ where: { postId, userId } });
+        //User have voted on this post before and now he's changing it's value
+        // eg updoot to downdoot
+        if (updoot && updoot.value !== realValue) {
+            await typeorm_1.getConnection().transaction(async (tm) => {
+                await tm.query(`
+          update updoot 
+          set value = $1
+          where "postId" = $2 and "userId" = $3
+          `, [realValue, postId, userId]);
+                await tm.query(`
+          update post 
+          set points = points + $1
+          where id = $2
+          `, [2 * realValue, postId]
+                //2*realValue as we have to remove the first downdoot and add 1 for updoot and vice versa
+                );
+            });
+        }
+        else if (!updoot) {
+            //user has never voted before
+            await typeorm_1.getConnection().transaction(async (tm) => {
+                await tm.query(`
+        insert into updoot ("userId", "postId", "value")
+        values ($1, $2, $3)
+        `, [userId, postId, realValue]);
+                await tm.query(`
+          update post 
+          set points = points + $1
+          where id = $2
+          `, [realValue, postId]);
+            });
+        }
+        return true;
+    }
+    async posts(limit, cursor, { req }) {
         const realLimit = Math.min(50, limit);
         const realLimitPlusOne = realLimit + 1;
+        console.log("session after refresh and fetching posts: ", req.session);
         const replacements = [realLimitPlusOne];
-        if (cursor) {
-            replacements.push(new Date(parseInt(cursor)));
+        if (req.session.userId) {
+            replacements[1] = req.session.userId;
         }
+        if (cursor) {
+            replacements[2] = new Date(parseInt(cursor));
+        }
+        console.log("REPLACEMENT ...........................");
+        console.log(replacements);
         const posts = await typeorm_1.getConnection().query(`
     select p.*,
     json_build_object(
@@ -62,10 +109,13 @@ let PostResolver = class PostResolver {
       'email', u.email,
       'createdAt', u."createdAt",
       'updatedAt', u."updatedAt"
-    ) creator
+    ) creator,
+    ${req.session.userId
+            ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus" '
+            : 'null as "voteStatus" '}
     from post p
     inner join public.user u on u.id = p."creatorId"
-    ${cursor ? `where p."createdAt" < $2` : ""}
+    ${cursor ? `where p."createdAt" < $3` : ""}
     order by p."createdAt" DESC
     limit $1
     `, replacements);
@@ -88,7 +138,7 @@ let PostResolver = class PostResolver {
         };
     }
     post(id) {
-        return Post_1.Post.findOne(id);
+        return Post_1.Post.findOne(id, { relations: ["creator"] });
     }
     async createPost(input, { req }) {
         //2 SQL queries
@@ -117,11 +167,22 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PostResolver.prototype, "textSnippet", null);
 __decorate([
+    type_graphql_1.Mutation(() => Boolean),
+    type_graphql_1.UseMiddleware(isAuth_1.isAuth),
+    __param(0, type_graphql_1.Arg("postId", () => type_graphql_1.Int)),
+    __param(1, type_graphql_1.Arg("value", () => type_graphql_1.Int)),
+    __param(2, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, Object]),
+    __metadata("design:returntype", Promise)
+], PostResolver.prototype, "vote", null);
+__decorate([
     type_graphql_1.Query(() => PaginatedPosts),
     __param(0, type_graphql_1.Arg("limit", () => type_graphql_1.Int)),
     __param(1, type_graphql_1.Arg("cursor", () => String, { nullable: true })),
+    __param(2, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, String]),
+    __metadata("design:paramtypes", [Number, String, Object]),
     __metadata("design:returntype", Promise)
 ], PostResolver.prototype, "posts", null);
 __decorate([

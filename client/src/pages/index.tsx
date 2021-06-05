@@ -5,12 +5,14 @@ import { Navbar } from "../components/Navbar";
 import { usePostsQuery } from "../generated/graphql";
 import { createUrqlClient } from "../utils/createUrqlClient";
 import NextLink from "next/link";
-import { Button } from "@chakra-ui/button";
+import { Button, IconButton } from "@chakra-ui/button";
 import { useState } from "react";
+import { ChevronUpIcon, ChevronDownIcon } from "@chakra-ui/icons";
+import { UpdootSection } from "../components/UpdootSection";
 
 const Index = () => {
   const [variables, setVariables] = useState({
-    limit: 10,
+    limit: 8,
     cursor: null as null | string,
   });
   const [{ data, fetching }] = usePostsQuery({
@@ -23,23 +25,27 @@ const Index = () => {
 
   return (
     <Layout>
-      <Flex align="center">
-        <Heading>Reddit</Heading>
-        <NextLink href="/create-post">
-          <Link ml="auto">Create Post</Link>
-        </NextLink>
-      </Flex>
-
-      <br />
       {fetching && !data ? (
         <div>Loading ...</div>
       ) : (
         <Stack spacing={8}>
           {data.posts.posts.map((p) => (
-            <Box p={5} key={p.id} shadow="md" borderWidth="1px">
-              <Heading fontSize="xl">{p.title}</Heading>
-              <Text mt={4}>{p.textSnippet}</Text>
-            </Box>
+            <Flex p={5} key={p.id} shadow="md" borderWidth="1px">
+              <UpdootSection post={p} />
+
+              <Box>
+                <NextLink href="/post/[id]" as={`/post/${p.id}`}>
+                  <Link>
+                    <Heading fontSize="xl">{p.title}</Heading>
+                  </Link>
+                </NextLink>
+
+                <Text>
+                  Posted By: <b>{p.creator.username}</b>
+                </Text>
+                <Text mt={4}>{p.textSnippet}</Text>
+              </Box>
+            </Flex>
           ))}
         </Stack>
       )}

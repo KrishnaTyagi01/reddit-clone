@@ -20,6 +20,7 @@ const hello_1 = require("./resolver/hello");
 const post_1 = require("./resolver/post");
 const user_1 = require("./resolver/user");
 const path_1 = __importDefault(require("path"));
+const Updoot_1 = require("./entities/Updoot");
 const main = async () => {
     const conn = await typeorm_1.createConnection({
         type: "postgres",
@@ -29,12 +30,12 @@ const main = async () => {
         logging: true,
         synchronize: true,
         migrations: [path_1.default.join(__dirname, "./migrations/*")],
-        entities: [Post_1.Post, User_1.User],
+        entities: [Post_1.Post, User_1.User, Updoot_1.Updoot],
     });
     // await conn.runMigrations();
     const app = express_1.default();
     const RedisStore = connect_redis_1.default(express_session_1.default);
-    const redis = ioredis_1.default();
+    const redis = new ioredis_1.default();
     app.use(cors_1.default({
         origin: "http://localhost:3000",
         credentials: true,

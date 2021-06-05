@@ -52,6 +52,14 @@ UserResponse = __decorate([
     type_graphql_1.ObjectType()
 ], UserResponse);
 let UserResolver = class UserResolver {
+    email(user, { req }) {
+        //we can show current user their own email only
+        if (req.session.userId == user.id) {
+            return user.email;
+        }
+        //Current user can't see other user's email
+        return "";
+    }
     async changePassword(token, newPassword, { redis, req }) {
         if (newPassword.length <= 2) {
             return {
@@ -115,6 +123,7 @@ let UserResolver = class UserResolver {
         if (!req.session.userId) {
             return null;
         }
+        // console.log("session in ME query: ", req.session);
         return User_1.User.findOne(req.session.userId);
     }
     async register(options, { req }) {
@@ -181,7 +190,10 @@ let UserResolver = class UserResolver {
                 ],
             };
         }
+        console.log("User Id When Login:", user.id);
         req.session.userId = user.id;
+        console.log("User Id In Session:", req.session.userId);
+        console.log("Session after login: ", req.session);
         return { user };
     }
     logout({ req, res }) {
@@ -196,6 +208,13 @@ let UserResolver = class UserResolver {
         }));
     }
 };
+__decorate([
+    type_graphql_1.FieldResolver(() => String),
+    __param(0, type_graphql_1.Root()), __param(1, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [User_1.User, Object]),
+    __metadata("design:returntype", void 0)
+], UserResolver.prototype, "email", null);
 __decorate([
     type_graphql_1.Mutation(() => UserResponse),
     __param(0, type_graphql_1.Arg("token", () => String)),
@@ -245,6 +264,6 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], UserResolver.prototype, "logout", null);
 UserResolver = __decorate([
-    type_graphql_1.Resolver() // It's optional
+    type_graphql_1.Resolver(User_1.User) // It's optional
 ], UserResolver);
 exports.UserResolver = UserResolver;
