@@ -1,14 +1,14 @@
+import { Button, IconButton } from "@chakra-ui/button";
+import { DeleteIcon, EditIcon } from "@chakra-ui/icons";
 import { Box, Flex, Heading, Link, Stack, Text } from "@chakra-ui/layout";
 import { withUrqlClient } from "next-urql";
-import { Layout } from "../components/Layout";
-import { Navbar } from "../components/Navbar";
-import { usePostsQuery } from "../generated/graphql";
-import { createUrqlClient } from "../utils/createUrqlClient";
 import NextLink from "next/link";
-import { Button, IconButton } from "@chakra-ui/button";
 import { useState } from "react";
-import { ChevronUpIcon, ChevronDownIcon } from "@chakra-ui/icons";
+import { Layout } from "../components/Layout";
 import { UpdootSection } from "../components/UpdootSection";
+import { useMeQuery, usePostsQuery } from "../generated/graphql";
+import { useDeletePostMutation } from "../generated/graphql";
+import { createUrqlClient } from "../utils/createUrqlClient";
 
 const Index = () => {
   const [variables, setVariables] = useState({
@@ -18,6 +18,9 @@ const Index = () => {
   const [{ data, fetching }] = usePostsQuery({
     variables,
   });
+
+  const [, deletePost] = useDeletePostMutation();
+  const [{ data: meData }] = useMeQuery();
 
   if (!fetching && !data) {
     return <div>Your query failed for some reason</div>;
@@ -29,24 +32,53 @@ const Index = () => {
         <div>Loading ...</div>
       ) : (
         <Stack spacing={8}>
-          {data.posts.posts.map((p) => (
-            <Flex p={5} key={p.id} shadow="md" borderWidth="1px">
-              <UpdootSection post={p} />
+          {data.posts.posts.map((p) =>
+            !p ? null : (
+              <Flex p={5} key={p.id} shadow="md" borderWidth="1px">
+                <UpdootSection post={p} />
 
-              <Box>
-                <NextLink href="/post/[id]" as={`/post/${p.id}`}>
-                  <Link>
-                    <Heading fontSize="xl">{p.title}</Heading>
-                  </Link>
-                </NextLink>
+                <Box flex={1}>
+                  <NextLink href="/post/[id]" as={`/post/${p.id}`}>
+                    <Link>
+                      <Heading fontSize="xl">{p.title}</Heading>
+                    </Link>
+                  </NextLink>
 
-                <Text>
-                  Posted By: <b>{p.creator.username}</b>
-                </Text>
-                <Text mt={4}>{p.textSnippet}</Text>
-              </Box>
-            </Flex>
-          ))}
+                  <Text>
+                    Posted By: <b>{p.creator.username}</b>
+                  </Text>
+                  <Flex>
+                    <Text flex={1} mt={4}>
+                      {p.textSnippet}
+                    </Text>
+                    {meData?.me?.id !== p.creator.id ? null : (
+                      <Box ml="auto">
+                        <NextLink
+                          href="/post/edit/[id]"
+                          as={`/post/edit/${p.id}`}
+                        >
+                          <IconButton
+                            as={Link}
+                            mr={4}
+                            aria-label="Edit Post"
+                            icon={<EditIcon />}
+                          />
+                        </NextLink>
+                        <IconButton
+                          colorScheme="red"
+                          aria-label="Delete Post"
+                          icon={<DeleteIcon />}
+                          onClick={() => {
+                            deletePost({ id: p.id });
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Flex>
+                </Box>
+              </Flex>
+            )
+          )}
         </Stack>
       )}
       {data && data.posts.hasMore ? (

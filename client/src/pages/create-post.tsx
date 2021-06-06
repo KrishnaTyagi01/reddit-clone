@@ -28,7 +28,7 @@ const CreatePost: React.FC<{}> = ({}) => {
           }
         }}
       >
-        {({ values, handleChange, isSubmitting }) => (
+        {({ isSubmitting }) => (
           <Form>
             <InputField name="title" placeholder="title" label="Title" />
 
@@ -46,7 +46,7 @@ const CreatePost: React.FC<{}> = ({}) => {
               type="submit"
               colorScheme="teal"
             >
-              Create Post
+              Update Post
             </Button>
           </Form>
         )}

@@ -91,7 +91,6 @@ let PostResolver = class PostResolver {
     async posts(limit, cursor, { req }) {
         const realLimit = Math.min(50, limit);
         const realLimitPlusOne = realLimit + 1;
-        console.log("session after refresh and fetching posts: ", req.session);
         const replacements = [realLimitPlusOne];
         if (req.session.userId) {
             replacements[1] = req.session.userId;
@@ -99,7 +98,6 @@ let PostResolver = class PostResolver {
         if (cursor) {
             replacements[2] = new Date(parseInt(cursor));
         }
-        console.log("REPLACEMENT ...........................");
         console.log(replacements);
         const posts = await typeorm_1.getConnection().query(`
     select p.*,
@@ -144,18 +142,31 @@ let PostResolver = class PostResolver {
         //2 SQL queries
         return Post_1.Post.create(Object.assign(Object.assign({}, input), { creatorId: req.session.userId })).save();
     }
-    async updatePost(id, title) {
-        const post = await Post_1.Post.findOne(id);
-        if (!post) {
-            return null;
-        }
-        if (typeof title !== "undefined") {
-            await Post_1.Post.update({ id }, { title });
-        }
-        return post;
+    async updatePost(id, title, text, { req }) {
+        const result = await typeorm_1.getConnection()
+            .createQueryBuilder()
+            .update(Post_1.Post)
+            .set({ title, text })
+            .where('id = :id and "creatorId" = :creatorId', {
+            id,
+            creatorId: req.session.userId,
+        })
+            .returning("*")
+            .execute();
+        return result.raw[0];
     }
-    async deletePost(id) {
-        await Post_1.Post.delete(id);
+    async deletePost(id, { req }) {
+        // not cascade way -> Deleting the updoots on a post if post is deleted
+        // const post = await Post.findOne(id);
+        // if (!post) {
+        //   return false;
+        // }
+        // if (post.creatorId !== req.session.userId) {
+        //   throw new Error("not authorized");
+        // }
+        // await Updoot.delete({ postId: id });
+        // await Post.delete({ id });
+        await Post_1.Post.delete({ id, creatorId: req.session.userId }); //user can only delete his own post
         return true;
     }
 };
@@ -203,17 +214,22 @@ __decorate([
 ], PostResolver.prototype, "createPost", null);
 __decorate([
     type_graphql_1.Mutation(() => Post_1.Post, { nullable: true }),
+    type_graphql_1.UseMiddleware(isAuth_1.isAuth),
     __param(0, type_graphql_1.Arg("id", () => type_graphql_1.Int)),
-    __param(1, type_graphql_1.Arg("title", () => String, { nullable: true })),
+    __param(1, type_graphql_1.Arg("title", () => String)),
+    __param(2, type_graphql_1.Arg("text", () => String)),
+    __param(3, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, String]),
+    __metadata("design:paramtypes", [Number, String, String, Object]),
     __metadata("design:returntype", Promise)
 ], PostResolver.prototype, "updatePost", null);
 __decorate([
     type_graphql_1.Mutation(() => Boolean),
+    type_graphql_1.UseMiddleware(isAuth_1.isAuth),
     __param(0, type_graphql_1.Arg("id", () => type_graphql_1.Int)),
+    __param(1, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", Promise)
 ], PostResolver.prototype, "deletePost", null);
 PostResolver = __decorate([

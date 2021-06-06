@@ -115,8 +115,6 @@ export class PostResolver {
     const realLimit = Math.min(50, limit);
     const realLimitPlusOne = realLimit + 1;
 
-    console.log("session after refresh and fetching posts: ", req.session);
-
     const replacements: any[] = [realLimitPlusOne];
 
     if (req.session.userId) {
@@ -126,8 +124,6 @@ export class PostResolver {
     if (cursor) {
       replacements[2] = new Date(parseInt(cursor));
     }
-
-    console.log("REPLACEMENT ...........................");
 
     console.log(replacements);
 
@@ -195,25 +191,45 @@ export class PostResolver {
   }
 
   @Mutation(() => Post, { nullable: true })
+  @UseMiddleware(isAuth)
   async updatePost(
     @Arg("id", () => Int) id: number,
-    @Arg("title", () => String, { nullable: true }) title: string
+    @Arg("title", () => String) title: string,
+    @Arg("text", () => String) text: string,
+    @Ctx() { req }: MyContext
   ): Promise<Post | null> {
-    const post = await Post.findOne(id);
+    const result = await getConnection()
+      .createQueryBuilder()
+      .update(Post)
+      .set({ title, text })
+      .where('id = :id and "creatorId" = :creatorId', {
+        id,
+        creatorId: req.session.userId,
+      })
+      .returning("*")
+      .execute();
 
-    if (!post) {
-      return null;
-    }
-
-    if (typeof title !== "undefined") {
-      await Post.update({ id }, { title });
-    }
-
-    return post;
+    return result.raw[0];
   }
   @Mutation(() => Boolean)
-  async deletePost(@Arg("id", () => Int) id: number): Promise<boolean> {
-    await Post.delete(id);
+  @UseMiddleware(isAuth)
+  async deletePost(
+    @Arg("id", () => Int) id: number,
+    @Ctx() { req }: MyContext
+  ): Promise<boolean> {
+    // not cascade way -> Deleting the updoots on a post if post is deleted
+    // const post = await Post.findOne(id);
+    // if (!post) {
+    //   return false;
+    // }
+    // if (post.creatorId !== req.session.userId) {
+    //   throw new Error("not authorized");
+    // }
+
+    // await Updoot.delete({ postId: id });
+    // await Post.delete({ id });
+
+    await Post.delete({ id, creatorId: req.session.userId }); //user can only delete his own post
     return true;
   }
 }
