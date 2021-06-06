@@ -14,7 +14,6 @@ export const UpdootSection: React.FC<UpdootSectionProps> = ({ post }) => {
     useState<"updoot-loading" | "downdoot-loading" | "not-loading">(
       "not-loading"
     );
-  console.log(post.voteStatus);
 
   const [, vote] = useVoteMutation();
   return (
