@@ -15,6 +15,7 @@ import {
 import { getConnection } from "typeorm";
 import { Post } from "../entities/Post";
 import { Updoot } from "../entities/Updoot";
+import { User } from "../entities/User";
 import { isAuth } from "../middleware/isAuth";
 import { MyContext } from "../types";
 
@@ -38,8 +39,37 @@ class PaginatedPosts {
 @Resolver(Post) // It's optional
 export class PostResolver {
   @FieldResolver(() => String)
-  textSnippet(@Root() root: Post) {
-    return root.text.slice(0, 50);
+  textSnippet(@Root() post: Post) {
+    //Here 'post' is just an alias for any obj of type Post
+    return post.text.slice(0, 50);
+  }
+
+  /* WHENEVER A POST IS FETCHED(anywhere in the app) IT WILL ATTACH A CREATOR OBJECT TO IT 
+  - SO THAT WE CAN ACCESS THE CREATOR OF THAT PARTICULAR POST */
+
+  //  it have a disadvantage as it created a seprate query for each post
+  //  if a page have 100 posts it will create 101 queries
+  // To resolve this we are using userLoader which will load all the users in one single query request
+
+  @FieldResolver(() => User)
+  creator(@Root() post: Post, @Ctx() { userLoader }: MyContext) {
+    return userLoader.load(post.creatorId);
+  }
+
+  @FieldResolver(() => Int, { nullable: true })
+  async voteStatus(
+    @Root() post: Post,
+    @Ctx() { updootLoader, req }: MyContext
+  ) {
+    if (!req.session.userId) {
+      return null;
+    }
+    const updoot = await updootLoader.load({
+      postId: post.id,
+      userId: req.session.userId,
+    });
+
+    return updoot ? updoot.value : null;
   }
 
   @Mutation(() => Boolean)
@@ -52,8 +82,6 @@ export class PostResolver {
     const isUpdoot = value !== -1;
     const realValue = isUpdoot ? 1 : -1;
     const { userId } = req.session;
-
-    console.log("Session on Vote resolver: ", req.session);
 
     const updoot = await Updoot.findOne({ where: { postId, userId } });
 
@@ -116,55 +144,20 @@ export class PostResolver {
     const realLimitPlusOne = realLimit + 1;
 
     const replacements: any[] = [realLimitPlusOne];
-
-    if (req.session.userId) {
-      replacements[1] = req.session.userId;
-    }
-
     if (cursor) {
-      replacements[2] = new Date(parseInt(cursor));
+      replacements.push(new Date(parseInt(cursor)));
     }
-
-    console.log(replacements);
 
     const posts = await getConnection().query(
       `
-    select p.*,
-    json_build_object(
-      'id', u.id,
-      'username', u.username,
-      'email', u.email,
-      'createdAt', u."createdAt",
-      'updatedAt', u."updatedAt"
-    ) creator,
-    ${
-      req.session.userId
-        ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus" '
-        : 'null as "voteStatus" '
-    }
+    select p.*
     from post p
-    inner join public.user u on u.id = p."creatorId"
-    ${cursor ? `where p."createdAt" < $3` : ""}
+    ${cursor ? `where p."createdAt" < $2` : ""}
     order by p."createdAt" DESC
     limit $1
     `,
       replacements
     );
-    // const qb = getConnection()
-    //   .getRepository(Post)
-    //   .createQueryBuilder("p")
-    //   .innerJoinAndSelect("p.creator", "u", 'u.id = p."creatorId"')
-    //   .orderBy('p."createdAt"', "DESC")
-    //   .take(realLimitPlusOne);
-
-    // if (cursor) {
-    //   qb.where('p."createdAt" < :cursor', {
-    //     cursor: new Date(parseInt(cursor)),
-    //   });
-    // }
-    // const allPost = await qb.getMany();
-
-    // console.log("posts:", posts);
 
     return {
       posts: posts.slice(0, realLimit),
@@ -174,7 +167,7 @@ export class PostResolver {
 
   @Query(() => Post, { nullable: true })
   post(@Arg("id", () => Int) id: number): Promise<Post | null> {
-    return Post.findOne(id, { relations: ["creator"] });
+    return Post.findOne(id);
   }
 
   @Mutation(() => Post)

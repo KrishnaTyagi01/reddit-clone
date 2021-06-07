@@ -17,6 +17,7 @@ const type_graphql_1 = require("type-graphql");
 const typeorm_1 = require("typeorm");
 const Post_1 = require("../entities/Post");
 const Updoot_1 = require("../entities/Updoot");
+const User_1 = require("../entities/User");
 const isAuth_1 = require("../middleware/isAuth");
 let PostInput = class PostInput {
 };
@@ -45,14 +46,32 @@ PaginatedPosts = __decorate([
     type_graphql_1.ObjectType()
 ], PaginatedPosts);
 let PostResolver = class PostResolver {
-    textSnippet(root) {
-        return root.text.slice(0, 50);
+    textSnippet(post) {
+        //Here 'post' is just an alias for any obj of type Post
+        return post.text.slice(0, 50);
+    }
+    /* WHENEVER A POST IS FETCHED(anywhere in the app) IT WILL ATTACH A CREATOR OBJECT TO IT
+    - SO THAT WE CAN ACCESS THE CREATOR OF THAT PARTICULAR POST */
+    //  it have a disadvantage as it created a seprate query for each post
+    //  if a page have 100 posts it will create 101 queries
+    // To resolve this we are using userLoader which will load all the users in one single query request
+    creator(post, { userLoader }) {
+        return userLoader.load(post.creatorId);
+    }
+    async voteStatus(post, { updootLoader, req }) {
+        if (!req.session.userId) {
+            return null;
+        }
+        const updoot = await updootLoader.load({
+            postId: post.id,
+            userId: req.session.userId,
+        });
+        return updoot ? updoot.value : null;
     }
     async vote(postId, value, { req }) {
         const isUpdoot = value !== -1;
         const realValue = isUpdoot ? 1 : -1;
         const { userId } = req.session;
-        console.log("Session on Vote resolver: ", req.session);
         const updoot = await Updoot_1.Updoot.findOne({ where: { postId, userId } });
         //User have voted on this post before and now he's changing it's value
         // eg updoot to downdoot
@@ -92,51 +111,23 @@ let PostResolver = class PostResolver {
         const realLimit = Math.min(50, limit);
         const realLimitPlusOne = realLimit + 1;
         const replacements = [realLimitPlusOne];
-        if (req.session.userId) {
-            replacements[1] = req.session.userId;
-        }
         if (cursor) {
-            replacements[2] = new Date(parseInt(cursor));
+            replacements.push(new Date(parseInt(cursor)));
         }
-        console.log(replacements);
         const posts = await typeorm_1.getConnection().query(`
-    select p.*,
-    json_build_object(
-      'id', u.id,
-      'username', u.username,
-      'email', u.email,
-      'createdAt', u."createdAt",
-      'updatedAt', u."updatedAt"
-    ) creator,
-    ${req.session.userId
-            ? '(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus" '
-            : 'null as "voteStatus" '}
+    select p.*
     from post p
-    inner join public.user u on u.id = p."creatorId"
-    ${cursor ? `where p."createdAt" < $3` : ""}
+    ${cursor ? `where p."createdAt" < $2` : ""}
     order by p."createdAt" DESC
     limit $1
     `, replacements);
-        // const qb = getConnection()
-        //   .getRepository(Post)
-        //   .createQueryBuilder("p")
-        //   .innerJoinAndSelect("p.creator", "u", 'u.id = p."creatorId"')
-        //   .orderBy('p."createdAt"', "DESC")
-        //   .take(realLimitPlusOne);
-        // if (cursor) {
-        //   qb.where('p."createdAt" < :cursor', {
-        //     cursor: new Date(parseInt(cursor)),
-        //   });
-        // }
-        // const allPost = await qb.getMany();
-        // console.log("posts:", posts);
         return {
             posts: posts.slice(0, realLimit),
             hasMore: posts.length == realLimitPlusOne,
         };
     }
     post(id) {
-        return Post_1.Post.findOne(id, { relations: ["creator"] });
+        return Post_1.Post.findOne(id);
     }
     async createPost(input, { req }) {
         //2 SQL queries
@@ -177,6 +168,21 @@ __decorate([
     __metadata("design:paramtypes", [Post_1.Post]),
     __metadata("design:returntype", void 0)
 ], PostResolver.prototype, "textSnippet", null);
+__decorate([
+    type_graphql_1.FieldResolver(() => User_1.User),
+    __param(0, type_graphql_1.Root()), __param(1, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Post_1.Post, Object]),
+    __metadata("design:returntype", void 0)
+], PostResolver.prototype, "creator", null);
+__decorate([
+    type_graphql_1.FieldResolver(() => type_graphql_1.Int, { nullable: true }),
+    __param(0, type_graphql_1.Root()),
+    __param(1, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Post_1.Post, Object]),
+    __metadata("design:returntype", Promise)
+], PostResolver.prototype, "voteStatus", null);
 __decorate([
     type_graphql_1.Mutation(() => Boolean),
     type_graphql_1.UseMiddleware(isAuth_1.isAuth),

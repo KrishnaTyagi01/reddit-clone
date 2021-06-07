@@ -1,7 +1,6 @@
 import { IconButton } from "@chakra-ui/button";
 import { DeleteIcon, EditIcon } from "@chakra-ui/icons";
-import { Box, Flex, Heading, Link, Stack, Text } from "@chakra-ui/layout";
-import { withUrqlClient } from "next-urql";
+import { Box, Link } from "@chakra-ui/layout";
 import NextLink from "next/link";
 import React from "react";
 import { useDeletePostMutation, useMeQuery } from "../generated/graphql";
